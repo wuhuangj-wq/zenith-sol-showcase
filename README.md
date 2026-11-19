@@ -1,6 +1,6 @@
 # ゼニットソル 公開作品
 
-**[作品ページで試す・ダウンロード](https://zenith-sol-home.adeptcart16.chatgpt.site/works/)**
+**[作品ページで試す](https://zenith-sol-home.adeptcart16.chatgpt.site/works/) · [配布ZIPを保存](https://github.com/wuhuangj-wq/zenith-sol-showcase/releases/tag/v1.0.0)**
 
 完成した配布物と、機能を限定したブラウザ体験版の案内です。試作中の会話AIやWindows製品は含めていません。
 
