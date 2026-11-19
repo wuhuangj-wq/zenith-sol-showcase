@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src blob: data:; connect-src 'none'; form-action 'none'; base-uri 'none'">
+<title>現場写真台帳</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#edf1ef;color:#172c27;font:16px/1.55 Inter,"Yu Gothic",sans-serif}header,main{max-width:960px;margin:auto;padding:16px 24px}h1,h2{margin:0 0 12px}header{padding-top:32px}.controls,.card{background:white;border:1px solid #d1dcd6;border-radius:12px;padding:16px;margin-bottom:16px}.controls label,.card label{display:grid;gap:4px;margin-bottom:8px}button,input,select,textarea{font:inherit;color:inherit}button,input,select,textarea{border:1px solid #9caea5;border-radius:6px;padding:7px 10px;max-width:100%}textarea{min-height:70px;resize:vertical}button{background:#fff;cursor:pointer}button.primary{background:#205444;color:white;border-color:#205444}button:disabled{opacity:.5;cursor:default}.actions{display:flex;gap:8px;flex-wrap:wrap}.card{display:grid;grid-template-columns:minmax(180px,1fr) minmax(220px,1fr);gap:18px;break-inside:avoid}.card img{display:block;width:100%;max-height:290px;object-fit:contain;background:#f4f6f4;border-radius:6px}.name{overflow-wrap:anywhere;margin:4px 0}.print-only{display:none}#status{min-height:1.55em;margin:8px 0 0} @media(max-width:600px){.card{grid-template-columns:1fr}} @page{size:A4;margin:14mm} @media print{body{background:white;color:black}header,main{padding:0;max-width:none}.controls,.screen-only,.editor{display:none!important}.card{border-radius:0;display:grid;grid-template-columns:1fr 1fr;page-break-inside:avoid;padding:4mm;margin-bottom:4mm}.card img{max-height:62mm}.print-only{display:block}.print-value{white-space:pre-wrap;overflow-wrap:anywhere}}
+</style>
+<header><h1>現場写真台帳</h1><p class="screen-only">写真を選び、工程と説明を入力して印刷します。写真はこの画面で処理します。</p><p class="print-only" id="printedProject"></p></header>
+<main>
+<section class="controls" aria-label="台帳の設定">
+<label>工事名・現場名<input id="project" maxlength="150" placeholder="例　みどり町集合住宅 外壁補修"></label>
+<label>写真を選ぶ（JPEG・PNG・WebP、最大30枚）<input id="files" type="file" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" multiple></label>
+<div class="actions"><button id="print" class="primary" disabled>印刷・PDF保存</button><button id="csv" disabled>写真一覧CSV</button><button id="demo">架空サンプルを開く</button></div>
+<p id="status" role="status">写真と備考はこのページを閉じると消えます。作業後にPDFまたはCSVを保存してください。</p>
+</section>
+<section id="ledger" aria-label="写真一覧"></section>
+</main>
+<script>
+const phases = [
+  "着工前・全景","着工前・既存の劣化","着工前・漏水跡","施工前・採寸",
+  "養生","清掃・高圧洗浄","既存材の撤去","ひび割れ補修","欠損補修","下地調整",
+  "プライマー塗布","シーリング充填","下塗り","中塗り","上塗り",
+  "防水層施工","端部・取り合い","施工後・全景","施工後・詳細","検査・手直し"
+];
+const entries = [];
+const el = id => document.getElementById(id);
+const create = (tag, text) => {
+  const element = document.createElement(tag);
+  if (text !== undefined) element.textContent = text;
+  return element;
+};
+function button(label, action) {
+  const element = create("button", label);
+  element.addEventListener("click", action);
+  return element;
+}
+function field(parent, name, input, value, save) {
+  const label = create("label", name);
+  input.value = value;
+  input.addEventListener("input", () => save(input.value));
+  label.append(input);
+  parent.append(label);
+}
+function move(index, direction) {
+  const next = index + direction;
+  [entries[index], entries[next]] = [entries[next], entries[index]];
+  render();
+  el("ledger").children[next].querySelector("input").focus();
+}
+function render() {
+  el("ledger").replaceChildren();
+  entries.forEach((entry, index) => {
+    const card = create("article");
+    card.className = "card";
+    const media = create("div");
+    const img = create("img");
+    img.src = entry.url;
+    img.alt = "写真 " + (index + 1);
+    const name = create("p", (index + 1) + ". " + entry.name);
+    name.className = "name";
+    media.append(img, name);
+    const detail = create("div");
+    const editor = create("div");
+    editor.className = "editor";
+    const date = create("input");
+    date.type = "date";
+    field(editor, "撮影日", date, entry.date, value => entry.date = value);
+    field(editor, "撮影箇所", create("input"), entry.place, value => entry.place = value);
+    const select = create("select");
+    select.append(new Option("工程を選ぶ", ""));
+    phases.forEach(phase => select.append(new Option(phase)));
+    field(editor, "工程", select, entry.phase, value => entry.phase = value);
+    field(editor, "説明・備考", create("textarea"), entry.note, value => entry.note = value);
+    const toolbar = create("div");
+    toolbar.className = "actions";
+    const up = button("上へ", () => move(index, -1));
+    const down = button("下へ", () => move(index, 1));
+    up.disabled = index === 0;
+    down.disabled = index === entries.length - 1;
+    toolbar.append(up, down, button("この写真を外す", () => {
+      URL.revokeObjectURL(entry.url);
+      entries.splice(index, 1);
+      render();
+    }));
+    editor.append(toolbar);
+    const printValue = create("div");
+    printValue.className = "print-only print-value";
+    detail.append(editor, printValue);
+    card.append(media, detail);
+    el("ledger").append(card);
+  });
+  el("print").disabled = el("csv").disabled = entries.length === 0;
+}
+function addFiles(files) {
+  let skipped = 0;
+  for (const file of files) {
+    if (entries.length >= 30 || !/\.(jpe?g|png|webp)$/i.test(file.name) || file.size > 20 * 1024 * 1024) {
+      skipped++;
+      continue;
+    }
+    entries.push({name:file.name,url:URL.createObjectURL(file),date:"",place:"",phase:"",note:""});
+  }
+  render();
+  el("status").textContent = entries.length + "枚を表示中。" + (skipped ? skipped + "枚を除外しました（形式・最大30枚・1枚20MBまで）。" : "");
+}
+function quote(value) {
+  const safe = /^[\s\uFEFF]*[=+\-@\t\r\n]/.test(value) ? "'" + value : value;
+  return '"' + safe.replaceAll('"','""') + '"';
+}
+function csvContent(project, rows) {
+  const header = ["工事名","番号","元ファイル名","撮影日","撮影箇所","工程","説明・備考"];
+  return "\uFEFF" + [header, ...rows.map((e,i) => [project,String(i+1),e.name,e.date,e.place,e.phase,e.note])]
+    .map(row => row.map(quote).join(",")).join("\r\n");
+}
+function updatePrint() {
+  el("printedProject").textContent = el("project").value.trim() || "工事名未入力";
+  el("ledger").querySelectorAll(".print-value").forEach((node, index) => {
+    const e = entries[index];
+    node.textContent = "撮影日　" + (e.date || "要確認") + "\n撮影箇所　" + (e.place || "要確認") +
+      "\n工程　" + (e.phase || "要確認") + "\n説明　" + (e.note || "—");
+  });
+}
+el("files").addEventListener("change", event => {
+  addFiles(event.target.files);
+  event.target.value = "";
+});
+el("print").addEventListener("click", () => { updatePrint(); window.print(); });
+window.addEventListener("beforeprint", updatePrint);
+el("csv").addEventListener("click", () => {
+  const blob = new Blob([csvContent(el("project").value, entries)], {type:"text/csv;charset=utf-8"});
+  const link = create("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = "現場写真一覧.csv";
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+});
+el("demo").addEventListener("click", () => {
+  const examples = [
+    ["施工前.png","着工前・既存の劣化","既存のひび割れの位置を記録。"],
+    ["下地作業.png","下地調整","補修箇所の表面を整えた状態。"],
+    ["施工後.png","施工後・全景","施工後の外壁全景。"]
+  ];
+  if (entries.length + examples.length > 30) {
+    el("status").textContent = "サンプルを追加するには写真一覧に3枚分の空きが必要です。";
+    return;
+  }
+  if (!el("project").value) el("project").value = "みどり町集合住宅 外壁補修（架空）";
+  examples.forEach(([name, phase, note], index) => {
+    const canvas = create("canvas");
+    canvas.width = 640;
+    canvas.height = 360;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = ["#a1aaa4","#c0b1a0","#c4d2c3"][index];
+    ctx.fillRect(0,0,640,360);
+    ctx.fillStyle = "#152c25";
+    ctx.font = "bold 28px sans-serif";
+    ctx.fillText(phase,44,145);
+    ctx.font = "20px sans-serif";
+    ctx.fillText("架空サンプル画像",44,190);
+    entries.push({name,phase,note,url:canvas.toDataURL(),date:"2026-11-10",place:"南側外壁"});
+  });
+  render();
+  el("status").textContent = "架空サンプル3枚を追加しました。";
+});
+</script>
+</html>
