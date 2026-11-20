@@ -26,3 +26,7 @@
 [検証記録](VERIFICATION.md) · [ファイルサイズ・SHA-256](downloads/manifest.json)
 
 不具合は[Issues](https://github.com/wuhuangj-wq/zenith-sol-showcase/issues)へ。端末・ブラウザ・手順だけを添えてください。個人情報や機密資料を含めないでください。全端末での動作を保証するものではありません。
+
+## 開発と再テストの記事
+
+[トジマリのルール処理・制限・再テストの記録](articles/tojimari-browser-redaction.md)。Zenn連携用の原稿です。Zenn上ではまだ公開していません。
